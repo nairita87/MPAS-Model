@@ -891,13 +891,13 @@ contains
          +layerThickness(k,cell2))
          end do
 
-         ! average cell-based implicit bottom drag to edges and convert Mannings
-         ! n to Cd
-        implicitCd =max(0.0025,0.16/log(0.5*0.5*((bottomDepth(cell1)+bottomDepth(cell2))/0.001)**2.0))        
-         if((implicitCd.ge.0.1).or.(implicitCd.le.0.0001))then
-        implicitCd=0.0025
-        endif
-
+         ! average cell-based implicit bottom drag following the formulation
+         ! in HYCOM (reference : NCOM's formula for 2D case 
+         !cb(i,j) = max(cbmin, (vonk/log(0.5*depth(i,j)/z0))**2 ))
+        implicitCd =max(0.0025,min(0.16/log(0.5*0.5*((bottomDepth(cell1)+bottomDepth(cell2))/0.001)**2.0),0.1))        
+        !! if((implicitCd.ge.0.1).or.(implicitCd.le.0.0001))then
+        !!implicitCd=0.0025
+        !!endif
         ! A is lower diagonal term
         do k = 2, N
             A(k) = -2.0_RKIND*dt*vertViscTopOfEdge(k,iEdge) &
