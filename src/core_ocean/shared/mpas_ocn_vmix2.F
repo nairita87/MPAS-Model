@@ -32,6 +32,7 @@ module ocn_vmix
    use ocn_vmix_coefs_tanh
    use ocn_vmix_coefs_rich
    use ocn_vmix_cvmix
+!!   use ocn_vmix_gotm
    use ocn_vmix_coefs_redi
 
    implicit none
@@ -132,7 +133,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: err1, err2, err3, err4, err5
+      integer :: err1, err2, err3, err4, err5, err6
       integer :: timeLevel
 
       integer :: iEdge, iCell, nEdges, nCells
@@ -180,9 +181,10 @@ contains
       call ocn_vmix_coefs_tanh_build(meshPool, statePool, diagnosticsPool, err2, timeLevel)
       call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, scratchPool, err3, timeLevel)
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, diagnosticsPool, err4, timeLevel)
-      call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, err5, timeLevel)
+      call ocn_vmix_coefs_gotm_build(meshPool, statePool, forcingPool, diagnosticsPool, err5, timeLevel)
+      call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, err6, timeLevel)
 
-      err = ior(ior(ior(err1, ior(err2, err3)), err4), err5)
+      err = ior(ior(ior(ior(err1, ior(err2, err3)), err4), err5), err6)
 
    !--------------------------------------------------------------------
 
@@ -1110,6 +1112,7 @@ contains
       integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop
       integer, dimension(:,:), pointer :: cellsOnEdge
       logical, pointer :: config_use_cvmix,config_compute_active_tracer_budgets
+      logical, pointer :: config_use_gotm
       logical, pointer :: config_cvmix_kpp_nonlocal_with_implicit_mix
       logical, pointer :: config_Rayleigh_friction, config_Rayleigh_bottom_friction, &
                           config_Rayleigh_damping_depth_variable
@@ -1133,6 +1136,7 @@ contains
 
       call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
       call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix', config_use_cvmix)
+      call mpas_pool_get_config(ocnConfigs, 'config_use_gotm', config_use_gotm)
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_nonlocal_with_implicit_mix', &
                                 config_cvmix_kpp_nonlocal_with_implicit_mix)
       call mpas_pool_get_config(ocnConfigs, 'config_compute_active_tracer_budgets',  &
@@ -1199,6 +1203,24 @@ contains
          call mpas_timer_stop('CVMix avg')
       endif
 
+      ! if using GOTM, then viscosity has to be averaged from cell centers to cell edges
+      if ( config_use_gotm ) then
+
+         nEdges = nEdgesArray( 1 )
+         call mpas_timer_start('GOTM avg', .false.)
+         !$omp do schedule(runtime) private(cell1, cell2, k)
+         do iEdge=1,nEdges
+            vertViscTopOfEdge(:, iEdge) = 0.0_RKIND
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            do k=1,maxLevelEdgeTop(iEdge)
+               vertViscTopOfEdge(k,iEdge) = 0.5_RKIND*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
+            end do
+         end do
+         !$omp end do
+         call mpas_timer_stop('GOTM avg')
+      endif
+
       !
       !  Implicit vertical solve for momentum
       !
@@ -1222,7 +1244,7 @@ contains
             vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, &
             ssh, bottomDepth, err)
         else if (config_use_implicit_bottom_roughness) then
-          ! update bottomDrag via Cd=g*n^2*h^(-1/3)
+          ! update bottomDrag via HYCOM Cd
           call ocn_vel_vmix_tend_implicit_spatially_variable_roughness( &
         meshPool,bottomDrag, &
             dt, kineticEnergyCell, &
@@ -1321,7 +1343,7 @@ contains
       integer :: err_tmp
       logical, pointer :: config_disable_vel_vmix, config_disable_tr_vmix
       logical, pointer ::config_use_implicit_bottom_drag,config_use_implicit_bottom_roughness
-      real (kind=RKIND), pointer ::config_implicit_bottom_drag_coeff,config_implicit_roughness_coeff
+      real (kind=RKIND), pointer::config_implicit_bottom_drag_coeff,config_implicit_roughness_coeff
       logical, pointer :: config_Rayleigh_friction, config_Rayleigh_bottom_friction, &
                           config_Rayleigh_damping_depth_variable
       real (kind=RKIND), pointer :: config_Rayleigh_damping_coeff, config_Rayleigh_bottom_damping_coeff
@@ -1332,7 +1354,6 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_disable_tr_vmix', config_disable_tr_vmix)
       call mpas_pool_get_config(ocnConfigs, 'config_use_implicit_bottom_drag', config_use_implicit_bottom_drag)
       call mpas_pool_get_config(ocnConfigs, 'config_implicit_bottom_drag_coeff', config_implicit_bottom_drag_coeff)
-        call mpas_pool_get_config(ocnConfigs,'config_implicit_bottom_drag_coeff', config_implicit_roughness_coeff)
       call mpas_pool_get_config(ocnConfigs, 'config_Rayleigh_friction', &
                                              config_Rayleigh_friction)
       call mpas_pool_get_config(ocnConfigs, 'config_Rayleigh_bottom_friction', &
@@ -1372,7 +1393,6 @@ contains
       if (config_use_implicit_bottom_drag) then
           implicitBottomDragCoef = config_implicit_bottom_drag_coeff
       endif
-        
 
         if (config_use_implicit_bottom_roughness) then
           implicitBottomDragCoef = config_implicit_roughness_coeff
@@ -1385,6 +1405,8 @@ contains
       call ocn_vmix_coefs_rich_init(err_tmp)
       err = ior(err, err_tmp)
       call ocn_vmix_cvmix_init(domain,err_tmp)
+      err = ior(err, err_tmp)
+      call ocn_vmix_gotm_init(domain,err_tmp)
       err = ior(err, err_tmp)
       call ocn_vmix_coefs_redi_init(err_tmp)
       err = ior(err, err_tmp)
