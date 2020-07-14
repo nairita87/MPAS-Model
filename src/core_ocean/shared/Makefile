@@ -24,6 +24,7 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_vel_forcing.o \
 	   mpas_ocn_vel_forcing_surface_stress.o \
 	   mpas_ocn_vel_forcing_explicit_bottom_drag.o \
+           mpas_ocn_vel_forcing_implicit_bottom_drag.o \
 	   mpas_ocn_vel_pressure_grad.o \
 	   mpas_ocn_vmix.o \
 	   mpas_ocn_vmix_coefs_const.o \
@@ -104,11 +105,13 @@ mpas_ocn_vel_hmix_leith.o: mpas_ocn_constants.o mpas_ocn_config.o
 
 mpas_ocn_vel_hmix_del4.o: mpas_ocn_constants.o mpas_ocn_config.o
 
-mpas_ocn_vel_forcing.o: mpas_ocn_vel_forcing_surface_stress.o mpas_ocn_vel_forcing_explicit_bottom_drag.o mpas_ocn_forcing.o mpas_ocn_constants.o mpas_ocn_config.o
+mpas_ocn_vel_forcing.o: mpas_ocn_vel_forcing_surface_stress.o mpas_ocn_vel_forcing_explicit_bottom_drag.o mpas_ocn_vel_forcing_implicit_bottom_drag.o  mpas_ocn_forcing.o mpas_ocn_constants.o mpas_ocn_config.o
 
 mpas_ocn_vel_forcing_surface_stress.o: mpas_ocn_forcing.o mpas_ocn_constants.o mpas_ocn_config.o
 
 mpas_ocn_vel_forcing_explicit_bottom_drag.o: mpas_ocn_constants.o mpas_ocn_config.o
+
+mpas_ocn_vel_forcing_implicit_bottom_drag.o: mpas_ocn_constants.o mpas_ocn_config.o
 
 mpas_ocn_vel_hadv_coriolis.o: mpas_ocn_constants.o mpas_ocn_config.o
 
