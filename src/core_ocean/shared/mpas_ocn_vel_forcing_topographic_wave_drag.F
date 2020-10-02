@@ -10,8 +10,8 @@
 !  ocn_vel_forcing_explicit_bottom_drag
 !
 !> \brief MPAS ocean explicit bottom drag
-!> \author Mark Petersen
-!> \date   August 2017
+!> \author Nairita Pal
+!> \date   Oct 2020
 !> \details
 !>  This module contains the routine for computing
 !>  tendencies from explicit bottom drag.
@@ -64,8 +64,8 @@ contains
 !  routine ocn_vel_forcing_topographic_wave_drag_tend
 !
 !> \brief   Computes tendency term from topographic wave drag
-!> \author  Mark Petersen
-!> \date    15 August 2017
+!> \author  Nairita Pal
+!> \date    15 Oct 2020
 !> \details
 !>  This routine computes the topographic wave drag tendency for momentum
 !>  based on current state.
@@ -160,8 +160,8 @@ contains
 !  routine ocn_vel_forcing_topographic_wave_drag_init
 !
 !> \brief   Initializes ocean topographic wave drag forcing
-!> \author  Mark Petersen
-!> \date    August 2017
+!> \author  Nairita Pal
+!> \date    Oct 2020
 !> \details
 !>  This routine initializes quantities related to topographic wave  drag
 !>  in the ocean.
