@@ -792,10 +792,14 @@ contains
       !$omp end do
       !$omp end parallel
 
+      end if ! full_compute
+
       !
       !  compute fields needed to compute land-ice fluxes, either in the ocean model or in the coupler
       call ocn_compute_land_ice_flux_input_fields(meshPool, statePool, forcingPool, scratchPool, &
                                          diagnosticsPool, timeLevel)
+
+      if ( full_compute ) then
 
       nCells = nCellsArray( 2 )
       !$omp parallel
@@ -805,6 +809,7 @@ contains
       end do
       !$omp end do
       !$omp end parallel
+
 
       if(associated(landIceDraft)) then
          !$omp parallel
