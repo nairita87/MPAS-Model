@@ -106,19 +106,15 @@ contains
 
       integer :: iEdge, iCell
       integer :: err, nCells, nEdges, nVertices
-      integer, pointer  :: nVertLevels, vertexDegree
+      integer, pointer  :: nVertLevels
       integer, dimension(:), pointer :: nCellsArray, nEdgesArray, nVerticesArray
 
-      integer, dimension(:), pointer :: nEdgesOnCell, nEdgesOnEdge, &
-        maxLevelCell, maxLevelEdgeTop, maxLevelEdgeBot, &
-        maxLevelVertexBot
-      integer, dimension(:,:), pointer :: cellsOnEdge, cellsOnVertex, &
-        verticesOnEdge, edgesOnEdge, edgesOnVertex,boundaryCell, kiteIndexOnCell, &
-        verticesOnCell, edgeSignOnVertex, edgeSignOnCell, edgesOnCell, edgeMask
+      integer, dimension(:,:), pointer :: edgeSignOnCell
 
       real (kind=RKIND) :: coef_3rd_order
 
       real (kind=RKIND), dimension(:), pointer :: &
+!!<<<<<<< HEAD
 !!<<<<<<< HEAD
 !!        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh,  seaIcePressure, atmosphericPressure, frazilSurfacePressure, &
 !!        pressureAdjustedSSH, gradSSH, landIcePressure, landIceDraft,rinv
@@ -126,8 +122,12 @@ contains
         bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh,  seaIcePressure, atmosphericPressure, &
         pressureAdjustedSSH, gradSSH,rinv
 !!>>>>>>> Update folds and remove unused vars in diag solve
+!!=======
+!!        ssh,  seaIcePressure, atmosphericPressure, &
+!!        pressureAdjustedSSH, gradSSH
+!!>>>>>>> Remove unnecessary pointer retrievals in diag solve
       real (kind=RKIND), dimension(:,:), pointer :: &
-        weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, normalTransportVelocity, &
+        layerThicknessEdge, layerThickness, normalVelocity, normalTransportVelocity, &
         normalGMBolusVelocity, tangentialVelocity, pressure, circulation, kineticEnergyCell, montgomeryPotential, &
         zMid, zTop, divergence, relativeVorticity, relativeVorticityCell, &
         normalizedPlanetaryVorticityEdge, normalizedRelativeVorticityEdge, &
@@ -136,7 +136,7 @@ contains
         vertGMBolusVelocityTop, BruntVaisalaFreqTop, &
         RiTopOfCell, inSituThermalExpansionCoeff, inSituSalineContractionCoeff, edgeAreaFractionOfCell
 
-      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, derivTwo
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
 
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceLayerValue
@@ -146,19 +146,18 @@ contains
       integer :: timeLevel
       integer, pointer :: indexTemperature, indexSalinity
 
-
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
 
       logical :: full_compute = .true.
+
+      call mpas_timer_start('diagnostic solve')
 
       if ( present(full) ) then
          full_compute = full
       else
          full_compute = .true.
       end if
-
-      call mpas_timer_start('diagnostic solve')
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -207,33 +206,7 @@ contains
 
         call mpas_pool_get_array(diagnosticsPool, 'edgeAreaFractionOfCell', edgeAreaFractionOfCell)
 
-      call mpas_pool_get_array(meshPool, 'weightsOnEdge', weightsOnEdge)
-      call mpas_pool_get_array(meshPool, 'kiteAreasOnVertex', kiteAreasOnVertex)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'cellsOnVertex', cellsOnVertex)
-      call mpas_pool_get_array(meshPool, 'verticesOnEdge', verticesOnEdge)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnEdge', nEdgesOnEdge)
-      call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
-      call mpas_pool_get_array(meshPool, 'edgesOnEdge', edgesOnEdge)
-      call mpas_pool_get_array(meshPool, 'edgesOnVertex', edgesOnVertex)
-      call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-      call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
-      call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-      call mpas_pool_get_array(meshPool, 'areaTriangle', areaTriangle)
-      call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
-      call mpas_pool_get_array(meshPool, 'fVertex', fVertex)
-      call mpas_pool_get_array(meshPool, 'derivTwo', derivTwo)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot', maxLevelEdgeBot)
-      call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', maxLevelVertexBot)
-      call mpas_pool_get_array(meshPool, 'kiteIndexOnCell', kiteIndexOnCell)
-      call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
-      call mpas_pool_get_array(meshPool, 'boundaryCell', boundaryCell)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnVertex', edgeSignOnVertex)
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
-      call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
       call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
       call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
@@ -242,7 +215,6 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
       call mpas_pool_get_dimension(meshPool, 'nVerticesArray', nVerticesArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_dimension(meshPool, 'vertexDegree', vertexDegree)
 
       call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceValue', tracersSurfaceValue)
       call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceLayerValue', tracersSurfaceLayerValue)
@@ -668,8 +640,6 @@ contains
       !                                       (positive points from vertex1 to vertex2)
       !                                units: s^{-1} m^{-1}
       real (kind=RKIND), dimension(:,:), allocatable :: vorticityGradientTangentialComponent
-
-
 
       !
       ! Compute normalized relative and planetary vorticity
