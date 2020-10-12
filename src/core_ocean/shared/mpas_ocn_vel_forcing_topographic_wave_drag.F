@@ -120,10 +120,7 @@ contains
       integer, dimension(:,:), pointer :: cellsOnEdge
 
       err = 0
-       !! open(unit=432,file='/lustre/scratch3/turquoise/nairita/namelist_check/harmonic_an_topographic_drag_2/ocean/tides/USDEQU120at30cr10/harmonic_analysis_test/forward/ch.dat',status='unknown')
-       !! write(432,*)maxval(rinv(:)),'rinv shape',shape(normalVelocity)
-       !! close(432)
-      !!if ( .not. topographicWaveDragOn ) return
+      if ( .not. topographicWaveDragOn ) return
 
       call mpas_timer_start('vel topographic drag')
 
@@ -138,14 +135,11 @@ contains
         cell1 = cellsOnEdge(1,iEdge)
         cell2 = cellsOnEdge(2,iEdge)
         k =  maxLevelEdgeTop(iEdge)
-        !!if((abs(rinv(cell1).gt.1.0e+2)).or.((abs(rinv(cell2).gt.1.0e+2))))then
-        !!       tend(k,iEdge)=tend(k,iEdge)
-        !!else
         ! topographic wave drag term:
-        ! du/dt = ... rinv * u
+        ! du/dt = ... (1.0/rinv) * u
         ! rinv is the e-folding time which is read from a file 
-        tend(k,iEdge) = tend(k,iEdge)- (topographicWaveDragCoeff/(rinv(cell1)+rinv(cell2)))*normalVelocity(k,iEdge) 
-       !! endif
+        tend(k,iEdge) = tend(k,iEdge)- (topographicWaveDragCoeff/(0.5_RKIND*(rinv(cell1)+rinv(cell2))))*normalVelocity(k,iEdge) 
+       
       enddo
       !$omp end do
 
