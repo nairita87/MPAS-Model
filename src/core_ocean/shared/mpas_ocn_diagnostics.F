@@ -35,6 +35,7 @@ module ocn_diagnostics
    use ocn_equation_of_state
    use ocn_thick_ale
    use ocn_diagnostics_routines
+   use ocn_mesh
 
    implicit none
    private
@@ -106,10 +107,6 @@ contains
 
       integer :: iEdge, iCell
       integer :: err, nCells, nEdges, nVertices
-      integer, pointer  :: nVertLevels
-      integer, dimension(:), pointer :: nCellsArray, nEdgesArray, nVerticesArray
-
-      integer, dimension(:,:), pointer :: edgeSignOnCell
 
       real (kind=RKIND) :: coef_3rd_order
 
@@ -206,15 +203,8 @@ contains
 
         call mpas_pool_get_array(diagnosticsPool, 'edgeAreaFractionOfCell', edgeAreaFractionOfCell)
 
-      call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
-
       call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
       call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
-
-      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
-      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
-      call mpas_pool_get_dimension(meshPool, 'nVerticesArray', nVerticesArray)
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
 
       call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceValue', tracersSurfaceValue)
       call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceLayerValue', tracersSurfaceLayerValue)
@@ -224,9 +214,9 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficient', surfaceFluxAttenuationCoefficient)
       call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficientRunoff', surfaceFluxAttenuationCoefficientRunoff)
 
-      nEdges = nEdgesArray( size(nEdgesArray) )
-      nCells = nCellsArray( size(nCellsArray) )
-      nVertices = nVerticesArray( size(nVerticesArray) )
+      nEdges = nEdgesAll
+      nCells = nCellsAll
+      nVertices = nVerticesAll
 
       call ocn_diagnostic_solve_layerThicknessEdge(normalVelocity, layerThickness, layerThicknessEdge)
 
@@ -270,7 +260,7 @@ contains
       !
 
       ! Only need densities on 0, 1, and 2 halo cells
-      nCells = nCellsArray( size(nCellsArray) )
+      nCells = nCellsAll
 
       ! compute in-place density
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, &
@@ -297,7 +287,7 @@ contains
                 atmosphericPressure, seaIcePressure, montgomeryPotential, pressure, &
                 zMid, zTop, ssh)
 
-      nCells = nCellsArray( size(nCellsArray) )
+      nCells = nCellsAll
 
       if ( full_compute ) then
 
@@ -1066,7 +1056,7 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          relativeVorticity
-      integer, dimension(:,:), intent(in) :: &
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
          edgeSignOnCell   ! debug, mdt :: This array is in ocn_mesh, but results are non-bfb
                           !               if I use the ocn_mesh array
       real (kind=RKIND), dimension(:,:), intent(in) :: &
@@ -1520,14 +1510,8 @@ contains
       !-----------------------------------------------------------------
 
       integer :: iEdge, iCell, k, i, nCells
-      integer, pointer :: nVertLevels
-      integer, dimension(:), pointer :: nCellsArray
-      integer, dimension(:), pointer :: nEdgesOnCell, &
-        maxLevelCell, maxLevelEdgeTop
-      integer, dimension(:,:), pointer :: edgesOnCell, edgeSignOnCell
 
       real (kind=RKIND) :: flux, invAreaCell, div_hu_btr
-      real (kind=RKIND), dimension(:), pointer :: dvEdge, areaCell
 
       ! Scratch Arrays
       ! projectedSSH: projected SSH at a new time
@@ -1542,30 +1526,19 @@ contains
 
       err = 0
 
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-      call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
-
-      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-
       if (config_vert_coord_movement.eq.'impermeable_interfaces') then
         vertAleTransportTop=0.0_RKIND
         return
       end if
 
-      ncells = nCellsArray(size(nCellsArray))
+      ncells = nCellsAll
 
       allocate(div_hu(nVertLevels, nCells), &
                projectedSSH(nCells), &
                ALE_Thickness(nVertLevels, nCells))
 
       ! Only need to compute over 0 and 1 halos
-      nCells = nCellsArray( 2 )
+      nCells = nCellsHalo( 1 )
 
       !
       ! thickness-weighted divergence and barotropic divergence
@@ -1646,12 +1619,7 @@ contains
       integer, intent(in), optional :: timeLevelIn !< Input: Input time level for state pool
 
       integer :: iEdge, cell1, cell2, eoe, j, k
-      integer, pointer :: nEdgesSolve
-      real (kind=RKIND), dimension(:), pointer :: fEdge
-      real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge, normalVelocity, normalBaroclinicVelocity
-
-      integer, dimension(:), pointer :: maxLevelEdgeTop, nEdgesOnEdge
-      integer, dimension(:,:), pointer :: cellsOnEdge, edgesOnEdge
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, normalBaroclinicVelocity
 
       integer :: timeLevel
 
@@ -1666,17 +1634,6 @@ contains
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', normalBaroclinicVelocity, timeLevel)
 
-      call mpas_pool_get_array(meshPool, 'weightsOnEdge', weightsOnEdge)
-      call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnEdge', nEdgesOnEdge)
-      call mpas_pool_get_array(meshPool, 'edgesOnEdge', edgesOnEdge)
-
-      call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
-
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
-
       !DWJ: ADD OMP (Only needed for split explicit)
 
       !
@@ -1684,7 +1641,7 @@ contains
       !
       !$omp parallel
       !$omp do schedule(runtime) private(cell1, cell2, k, eoe)
-      do iEdge = 1, nEdgesSolve
+      do iEdge = 1, nEdgesOwned
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
 
@@ -1724,10 +1681,8 @@ contains
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
       integer :: iEdge, k
-      integer, pointer :: nEdges
       real (kind=RKIND) :: vertSum, normalThicknessFluxSum, thicknessSum
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, normalVelocity
-      integer, dimension(:), pointer :: maxLevelEdgeTop
 
       integer :: timeLevel
 
@@ -1743,13 +1698,9 @@ contains
 
       call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
 
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-
       !$omp parallel
       !$omp do schedule(runtime) private(normalThicknessFluxSum, thicknessSum, k, vertSum)
-      do iEdge = 1, nEdges
+      do iEdge = 1, nEdgesAll
 
         ! thicknessSum is initialized outside the loop because on land boundaries
         ! maxLevelEdgeTop=0, but I want to initialize thicknessSum with a
@@ -1794,11 +1745,8 @@ contains
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
       integer :: iEdge, k
-      integer, pointer :: nEdges
       real (kind=RKIND) :: vertSum, normalThicknessFluxSum, thicknessSum
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, tend_normalVelocity
-
-      integer, dimension(:), pointer :: maxLevelEdgeTop
 
       integer :: timeLevel
 
@@ -1814,13 +1762,9 @@ contains
 
       call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
 
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-
       !$omp parallel
       !$omp do schedule(runtime) private(normalThicknessFluxSum, thicknessSum, k, vertSum)
-      do iEdge = 1, nEdges
+      do iEdge = 1, nEdgesAll
 
         ! thicknessSum is initialized outside the loop because on land boundaries
         ! maxLevelEdgeTop=0, but I want to initialize thicknessSum with a
@@ -1921,15 +1865,8 @@ contains
 
       ! scalars
       integer :: nCells
-      integer, pointer :: nVertLevels
-      integer, dimension(:), pointer :: nCellsArray
-
-      ! integer pointers
-      integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
-      integer, dimension(:,:), pointer :: edgesOnCell
 
       ! real pointers
-      real (kind=RKIND), dimension(:), pointer :: dcEdge, dvEdge, areaCell
       real (kind=RKIND), dimension(:), pointer :: penetrativeTemperatureFlux, surfaceThicknessFlux, &
            surfaceBuoyancyForcing, surfaceFrictionVelocity, penetrativeTemperatureFluxOBL, &
            normalVelocitySurfaceLayer, surfaceThicknessFluxRunoff, rainFlux, evaporationFlux, &
@@ -1981,21 +1918,12 @@ contains
       turbulentVelocitySquared = 0.001_RKIND
 
       ! set scalar values
-      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_temperatureSurfaceFlux', indexTempFlux)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_salinitySurfaceFlux', indexSaltFlux)
 
       ! set pointers into state, mesh, diagnostics and scratch
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
-
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
-      call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-      call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-      call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
 
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
       call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
@@ -2022,14 +1950,14 @@ contains
       call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFluxRunoff', activeTracersSurfaceFluxRunoff)
 
       ! allocate scratch space displaced density computation
-      ncells = nCellsArray(size(nCellsArray))
+      ncells = nCellsAll
 
       allocate(densitySurfaceDisplaced(nVertLevels, nCells), &
                thermalExpansionCoeff(nVertLevels, nCells), &
                salineContractionCoeff(nVertLevels, nCells))
 
       ! Only need to compute over the 0 and 1 halos
-      nCells = nCellsArray( 3 )
+      nCells = nCellsHalo( 2 )
 
       ! compute EOS by displacing SST/SSS to every vertical layer in column
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, nCells, 0, 'surfaceDisplaced', &
@@ -2142,11 +2070,6 @@ contains
       type (mpas_pool_type), pointer :: tracersPool
 
       integer :: iCell, iEdge, cell1, cell2, iLevel, i
-      integer, pointer :: nCells, nEdges
-
-      integer, dimension(:,:), pointer :: cellsOnCell, cellsOnEdge, cellMask
-
-      integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
 
       integer, pointer :: indexT, indexS, indexBLT, indexBLS, indexHeatTrans, indexSaltTrans
 
@@ -2156,7 +2079,6 @@ contains
                                                   landIceFrictionVelocity, &
                                                   topDrag, &
                                                   topDragMagnitude, &
-                                                  fCell, &
                                                   surfaceFluxAttenuationCoefficient
 
       integer, dimension(:), pointer :: landIceMask
@@ -2183,15 +2105,6 @@ contains
       end if
 
       call mpas_timer_start("land_ice_diagnostic_fields", .false.)
-
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-
-      call mpas_pool_get_array(meshPool, 'cellsOnCell', cellsOnCell)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
 
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
@@ -2220,17 +2133,13 @@ contains
       end if
       call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficient', surfaceFluxAttenuationCoefficient)
 
-      allocate(blTempScratch(nCells), &
-               blSaltScratch(nCells))
-
-      if(hollandJenkinsOn) then
-         call mpas_pool_get_array(meshPool, 'fCell', fCell)
-      end if
+      allocate(blTempScratch(nCellsAll), &
+               blSaltScratch(nCellsAll))
 
       ! Compute top drag
       !$omp parallel
       !$omp do schedule(runtime) private(cell1, cell2, velocityMagnitude, landIceEdgeFraction)
-      do iEdge = 1, nEdges
+      do iEdge = 1, nEdgesAll
          cell1 = cellsOnEdge(1, iEdge)
          cell2 = cellsOnEdge(2, iEdge)
 
@@ -2246,7 +2155,7 @@ contains
 
       ! compute top drag magnitude and friction velocity at cell centers
       !$omp do schedule(runtime)
-      do iCell = 1, nCells
+      do iCell = 1, nCellsAll
          ! the magnitude of the top drag is CD*u**2 = CD*(2*KE)
          topDragMagnitude(iCell) = rho_sw * landIceFraction(iCell) &
                                    * 2.0_RKIND * config_land_ice_flux_topDragCoeff *  kineticEnergyCell(1,iCell)
@@ -2260,7 +2169,7 @@ contains
 
       ! average temperature and salinity over horizontal neighbors and the sub-ice-shelf boundary layer
       !$omp do schedule(runtime) private(blThickness, iLevel, dz)
-      do iCell = 1, nCells
+      do iCell = 1, nCellsAll
          blThickness = 0.0_RKIND
          blTempScratch(iCell) = 0.0_RKIND
          blSaltScratch(iCell) = 0.0_RKIND
@@ -2279,7 +2188,7 @@ contains
       !$omp end do
 
       !$omp do schedule(runtime) private(weightSum, i, cell2)
-      do iCell = 1, nCells
+      do iCell = 1, nCellsAll
          landIceBoundaryLayerTracers(indexBLT, iCell) = blTempScratch(iCell)
          landIceBoundaryLayerTracers(indexBLS, iCell) = blSaltScratch(iCell)
          if(config_land_ice_flux_boundaryLayerNeighborWeight > 0.0_RKIND) then
@@ -2302,7 +2211,7 @@ contains
       if(jenkinsOn) then
          !$omp parallel
          !$omp do schedule(runtime)
-         do iCell = 1, nCells
+         do iCell = 1, nCellsAll
             ! transfer coefficients from namelist
             landIceTracerTransferVelocities(indexHeatTrans, iCell) = landIceFrictionVelocity(iCell) &
                                              * config_land_ice_flux_jenkins_heat_transfer_coefficient
@@ -2314,7 +2223,7 @@ contains
       else if(hollandJenkinsOn) then
          !$omp parallel
          !$omp do schedule(runtime) private(h_nu, Gamma_turb)
-         do iCell = 1, nCells
+         do iCell = 1, nCellsAll
             ! friction-velocity dependent non-dimensional transfer coefficients from
             ! Holland and Jenkins 1999, (14)-(16) with eta_* = 1
             h_nu = 5.0_RKIND*nuSaltWater/landIceFrictionVelocity(iCell) ! uStar should never be zero because of tidal term
@@ -2340,7 +2249,7 @@ contains
       ! modify the spatially-varying attenuation coefficient where there is land ice
       !$omp parallel
       !$omp do schedule(runtime)
-      do iCell = 1, nCells
+      do iCell = 1, nCellsAll
          if(landIceMask(iCell) == 1) then
             surfaceFluxAttenuationCoefficient(iCell) = config_land_ice_flux_attenuation_coefficient
          end if
