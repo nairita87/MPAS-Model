@@ -236,7 +236,7 @@ contains
 
       if ( full_compute ) then
 
-         call ocn_diagnostic_solve_vortVel(relativeVorticity, edgeSignOnCell, &
+         call ocn_diagnostic_solve_vortVel(relativeVorticity, &
                 layerThicknessEdge, normalVelocity, normalTransportVelocity, &
                 normalGMBolusVelocity, vertVelocityTop, vertTransportVelocityTop, &
                 vertGMBolusVelocityTop, relativeVorticityCell, divergence, &
@@ -253,6 +253,7 @@ contains
                    layerThickness, relativeVorticity, &
                    normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, &
                    normalizedRelativeVorticityCell)
+
       end if    ! full_compute
 
       !
@@ -1034,17 +1035,13 @@ contains
 !>    velocities
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_diagnostic_solve_vortVel(relativeVorticity, edgeSignOnCell, &
+   subroutine ocn_diagnostic_solve_vortVel(relativeVorticity, &
                 layerThicknessEdge, normalVelocity, normalTransportVelocity, &
                 normalGMBolusVelocity, vertVelocityTop, vertTransportVelocityTop, &
                 vertGMBolusVelocityTop, relativeVorticityCell, divergence, &
                 kineticEnergyCell, tangentialVelocity)!{{{
 
-      use ocn_mesh, only: nCellsHalo, nEdgesHalo, nCellsOwned, areaCell, &
-                          nEdgesOnCell, kiteIndexOnCell, verticesOnCell, &
-                          maxLevelCell, nVertLevels, kiteAreasOnVertex, &
-                          edgesOnCell, dcEdge, dvEdge, weightsOnEdge, &
-                          nEdgesOnEdge, edgesOnEdge, maxLevelEdgeTop   ! debug, mdt :: this should be module-level
+      use ocn_mesh
 
       implicit none
 
@@ -1056,9 +1053,6 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          relativeVorticity
-      real (kind=RKIND), dimension(:,:), intent(in) :: &
-         edgeSignOnCell   ! debug, mdt :: This array is in ocn_mesh, but results are non-bfb
-                          !               if I use the ocn_mesh array
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThicknessEdge
       real (kind=RKIND), dimension(:,:), intent(in) :: &
