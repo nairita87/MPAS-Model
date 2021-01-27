@@ -508,7 +508,7 @@ contains
       call ocn_init_setup_global_ocean_interpolate_restoring(domain, iErr)
 
       call mpas_log_write( 'Compute Haney number')
-      call ocn_compute_Haney_number(domain, iErr)
+!mrp      call ocn_compute_Haney_number(domain, iErr)
       if(iErr .ne. 0) then
          call mpas_log_write( 'ocn_compute_Haney_number failed.', MPAS_LOG_CRIT)
          call mpas_dmpar_finalize(domain % dminfo)
@@ -873,7 +873,8 @@ contains
              end if
              if (isOcean) then
                 ! Enforce minimum depth
-                bottomDepth(iCell) = max(bottomDepthObserved(iCell), refBottomDepth(minimum_levels))
+!mrp                bottomDepth(iCell) = max(bottomDepthObserved(iCell), refBottomDepth(minimum_levels))
+                bottomDepth(iCell) = max(bottomDepthObserved(iCell), config_global_ocean_minimum_depth)
 
                 maxLevelCell(iCell) = -1
                 do k = 1, nVertLevels
