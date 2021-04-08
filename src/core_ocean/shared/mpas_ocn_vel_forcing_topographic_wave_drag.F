@@ -114,7 +114,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k, cell1, cell2, nEdges
+      integer :: iEdge, k, cell1, cell2, nEdges, kmax
       integer, dimension(:), pointer :: nEdgesArray
       integer, dimension(:), pointer :: maxLevelEdgeTop
       integer, dimension(:,:), pointer :: cellsOnEdge
@@ -134,12 +134,13 @@ contains
       do iEdge = 1, nEdges
         cell1 = cellsOnEdge(1,iEdge)
         cell2 = cellsOnEdge(2,iEdge)
-        k =  maxLevelEdgeTop(iEdge)
+        kmax =  maxLevelEdgeTop(iEdge)
         ! topographic wave drag term:
         ! du/dt = ... (1.0/rinv) * u
         ! rinv is the e-folding time which is read from a file 
+        do k=1,kmax
         tend(k,iEdge) = tend(k,iEdge)- (topographicWaveDragCoeff/(0.5_RKIND*(rinv(cell1)+rinv(cell2))))*normalVelocity(k,iEdge) 
-       
+       enddo
       enddo
       !$omp end do
 
